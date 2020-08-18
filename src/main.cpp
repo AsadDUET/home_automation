@@ -6,6 +6,7 @@
 #include <LiquidCrystal_I2C.h>
 #include <Adafruit_Fingerprint.h>
 #include <Keypad.h>
+#include <Servo.h>
 #define COLUMS 16
 #define ROWS 2
 #define PAGE ((COLUMS) * (ROWS))
@@ -30,7 +31,8 @@ DHT_Unified dht(DHTPIN, DHTTYPE);
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 Adafruit_Fingerprint finger = Adafruit_Fingerprint(&fpSerial);
 Keypad keypad = Keypad(makeKeymap(keys), pin_rows, pin_column, ROW_NUM, COLUMN_NUM);
-
+Servo myservo;
+int pos = 0;
 class Adht
 {
 public:
@@ -59,6 +61,14 @@ public:
 				lcd.print("T:");
 				lcd.print(event.temperature);
 				lcd.print(F("C"));
+				if (event.temperature > 30)
+				{
+					digitalWrite(50, HIGH);
+				}
+				else
+				{
+					digitalWrite(50, LOW);
+				}
 			}
 			// Get humidity event and print its value.
 			dht.humidity().getEvent(&event);
@@ -377,7 +387,7 @@ void check(int a8, int a9)
 			
 		}
 		Serial.println("#############");*/
-		
+
 		if ((data[4][0] == 1) && (data[4][1] == 1))
 		{
 			equal = true;
@@ -399,8 +409,10 @@ void check(int a8, int a9)
 			if (equal)
 			{
 				person += 1;
+				lcd.clear();
+				lcd.print(person);
 			}
-			else 
+			else
 			{
 				equal = true;
 				for (i = 0; i < 5; i++)
@@ -421,15 +433,25 @@ void check(int a8, int a9)
 				if (equal)
 				{
 					person -= 1;
+					if (person < 0)
+					{
+						person = 0;
+					}
+					lcd.clear();
+					lcd.print(person);
 				}
 			}
-			
+
 			Serial.println(person);
 		}
 	}
 }
 void setup()
 {
+	pinMode(37, OUTPUT);
+	pinMode(50, OUTPUT);
+	myservo.attach(12);
+	myservo.write(0);
 	Serial.begin(115200);
 	Serial.println("Home Automation");
 
@@ -456,18 +478,34 @@ void setup()
 
 void loop()
 {
-
-	if (millis() - door_open_time > 5000)
+	if (person > 0)
 	{
-		//close the door
-		door_open = false;
+		digitalWrite(37, HIGH);
+	}
+	else
+	{
+		digitalWrite(37, LOW);
+	}
+
+	if (door_open)
+	{
+		if (millis() - door_open_time > 5000)
+		{
+			for (pos = 90; pos >= 0; pos -= 1)
+			{
+				myservo.write(pos);
+				delay(15);
+			}
+			door_open = false;
+		}
 	}
 	if (door_open)
 	{
 		check(analogRead(A8) > limit, analogRead(A9) > limit);
-		/*Serial.print(analogRead(A8));
-		Serial.print(",");
-		Serial.println(analogRead(A9));*/
+
+		//Serial.print(analogRead(A8));
+		//Serial.print(",");
+		//Serial.println(analogRead(A9));
 	}
 	else
 	{
@@ -481,17 +519,32 @@ void loop()
 			lcd.clear();
 			lcd.print("End Enrole");
 		}
+		if (key == 'D')
+		{
+			for (pos = 0; pos <= 90; pos += 1)
+			{
+				myservo.write(pos);
+				delay(15);
+			}
+			door_open = true;
+			door_open_time = millis();
+		}
 		int known = getFingerprintIDez();
 		if (known != -1)
 		{
 			lcd.clear();
 			lcd.print("Access ID: ");
 			lcd.print(known);
-			//open the door
+			for (pos = 0; pos <= 90; pos += 1)
+			{
+				myservo.write(pos);
+				delay(15);
+			}
 			door_open = true;
 			door_open_time = millis();
 		}
 		lcd.setCursor(0, 1);
-		lcd.print("12 Person inside");
+		lcd.print(person);
+		lcd.print(" Person inside");
 	}
 }
